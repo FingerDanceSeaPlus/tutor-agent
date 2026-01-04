@@ -26,14 +26,15 @@ async def on_chat_start():
     chatLLM = ChatOpenAI(
     api_key=os.getenv("DASHSCOPE_API_KEY"),
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    model="qwen-plus",  # 此处以qwen-plus为例，您可按需更换模型名称。模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
+    model="qwen-plus",  # 此处以qwen-plus为例，模型列表：https://help.aliyun.com/zh/model-studio/getting-started/models
     # other params...
     )
     
     
     # 使用 RunnableLambda 包装解析函数，类似 StrOutputParser
+    output_parser = StrOutputParser()
     agent = build_agent(chatLLM)
-    runnable = agent | RunnableLambda(extract_agent_output)
+    runnable = agent | output_parser
     cl.user_session.set("runnable", runnable)
 
 
