@@ -13,6 +13,15 @@ class HintPolicy:
         return level
 
     def can_give_final(self, level: int) -> bool:
+        """
+        判断是否能给出最终结果
+        
+        :param self: 说明
+        :param level: 说明
+        :type level: int
+        :return: 说明
+        :rtype: bool
+        """
         return level >= self.final_answer_level
 
 def format_hint_header(level: int) -> str:
