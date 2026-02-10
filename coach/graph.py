@@ -8,6 +8,7 @@ from coach.hint_policy import HintPolicy, format_hint_header, hint_rules
 # ---------- Nodes ----------
 
 def n_intake(state: CoachState) -> CoachState:
+    print("intake\n")
     state.step.name = "intake"
     state.step.status = "done"
     state.ui_message = (
@@ -21,6 +22,7 @@ def n_intake(state: CoachState) -> CoachState:
     return state
 
 def n_diagnose(state: CoachState) -> CoachState:
+    print("diagnose\n")
     state.step.name = "diagnose"
     state.step.status = "done"
     # MVP：不做复杂分类，后续可用 LLM/题库标签
@@ -37,6 +39,7 @@ def n_diagnose(state: CoachState) -> CoachState:
     return state
 
 def n_probe(state: CoachState) -> CoachState:
+    print("probe\n")
     state.step.name = "probe"
     state.step.status = "need_user"
     # 关键：用苏格拉底式问题逼用户先说
@@ -51,6 +54,7 @@ def n_probe(state: CoachState) -> CoachState:
     return state
 
 def n_hint_or_advance(state: CoachState) -> CoachState:
+    print("hint\n")
     state.step.name = "hint_or_advance"
     state.step.status = "done"
 
@@ -66,8 +70,8 @@ def n_hint_or_advance(state: CoachState) -> CoachState:
         missing.append("复杂度")
     if len(thoughts) < 30:
         missing.append("思路太短")
-
-    if missing:
+    """
+    if not missing:#暂时修改
         # 升级提示等级（但不跳级）
         state.hint_policy.level = hp.bump(int(state.hint_policy.level))  # type: ignore
         state.hint_policy.hint_count += 1
@@ -83,7 +87,7 @@ def n_hint_or_advance(state: CoachState) -> CoachState:
             "- 复杂度：时间 O(?)，空间 O(?)，理由：……\n"
         )
         state.next_action = "probe"
-        return state
+        return state"""
 
     # 思路齐全 → 进入编码
     state.ui_message = (
@@ -97,31 +101,36 @@ def n_hint_or_advance(state: CoachState) -> CoachState:
     return state
 
 def n_coach(state: CoachState) -> CoachState:
+    print("coach\n")
     state.step.name = "coach"
     state.step.status = "need_user"
-
+    """
     if not (state.user_attempt.code or "").strip():
         state.ui_message = "请先提交代码（需要 `solve(inp: str) -> str`）。"
         state.next_action = "coach"
-        return state
+        return state"""
 
     # 先做轻量 code review（MVP：只做规范检查）
     msg = []
     if "def solve" not in state.user_attempt.code:
         msg.append("- 你没有定义 `solve(inp: str) -> str`。")
+    """
     if msg:
         state.ui_message = "### 代码规范问题\n" + "\n".join(msg)
         state.next_action = "coach"
-        return state
+        return state"""
 
     state.ui_message = "收到代码。现在请点「运行测试」。"
     state.next_action = "evaluate"
     return state
 
 def n_evaluate(state: CoachState) -> CoachState:
+    print("eval\n")
     state.step.name = "evaluate"
     state.step.status = "running"
-
+    state.step.status = "done"
+    state.next_action = "reflect"
+    return state
     # MVP：用 problem.examples 里预置的测试（你后续可接题库解析）
     # 这里演示：允许在 state.problem.examples 放 JSON-like 的测试用例（最简）
     # 若为空，就只提示用户添加测试
@@ -141,7 +150,7 @@ def n_evaluate(state: CoachState) -> CoachState:
                 testcases.append({"input": inp, "expected": out})
 
     if not testcases:
-        state.evaluation.passed = False
+        state.evaluation.passed = True#暂时让其全通过
         state.ui_message = (
             "当前题目没有内置测试样例（examples 为空或格式不对）。\n\n"
             "请你补充至少 1 个样例（INPUT/OUTPUT），或你贴出题目样例，我来结构化成测试。"
@@ -189,6 +198,7 @@ def n_evaluate(state: CoachState) -> CoachState:
     return state
 
 def n_reflect(state: CoachState) -> CoachState:
+    print("reflect\n")
     state.step.name = "reflect"
     state.step.status = "done"
 
@@ -220,7 +230,7 @@ def n_reflect(state: CoachState) -> CoachState:
         )
 
     # 一轮结束，回到 probe 或 coach 取决于通过与否
-    state.next_action = "probe" if state.evaluation.passed else "coach"
+    state.next_action = END#"probe" if state.evaluation.passed else "coach"
     return state
 
 # ---------- Router ----------
