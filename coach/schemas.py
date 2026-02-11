@@ -14,7 +14,9 @@ class Problem(BaseModel):
     title: str = "Untitled"
     statement: str
     constraints: str = ""
-    examples: str = ""
+    examples: str = ""      # 仍保留：展示用
+    raw_text: str = ""      # 新增：完整题干
+    testcases: List[Dict[str, str]] = Field(default_factory=list)  # 新增：评测用例
 
 class UserAttempt(BaseModel):
     """

@@ -3,19 +3,20 @@ from __future__ import annotations
 import chainlit as cl
 from coach.schemas import CoachState, Problem
 from coach.graph import build_graph
-
+from coach.problem_parser import *
 GRAPH = build_graph()
 from IPython.display import Image, display
 def init_state() -> CoachState:
-    # MVP：用一个示例题。你后续接入题库时，替换 Problem 的来源即可。
-    
+    # 初始无题：提示用户先设置
     p = Problem(
         source="custom",
-        id="demo-001",
-        title="Echo",
-        statement="实现 solve(inp) 原样输出输入（用于验证系统链路）。",
-        constraints="任意文本",
-        examples="INPUT:\nhello\nOUTPUT:\nhello\n"
+        id="custom-001",
+        title="(未设置题目)",
+        statement="请先粘贴题目原文。",
+        raw_text="",
+        constraints="",
+        examples="",
+        testcases=[]
     )
     return CoachState(problem=p)
 
@@ -31,64 +32,78 @@ async def run_graph_once(state: CoachState) -> CoachState:
     return CoachState.model_validate(out)
 
 
-@cl.set_starters
-async def set_starters():
-    return [
-        cl.Starter(
-            label="Morning routine ideation",
-            message="Can you help me create a personalized morning routine that would help increase my productivity throughout the day? Start by asking me about my current habits and what activities energize me in the morning.",
-            #icon="/public/idea.svg",
-        ),
 
-        cl.Starter(
-            label="Explain superconductors",
-            message="Explain superconductors like I'm five years old.",
-            #icon="/public/learn.svg",
-        ),
-        cl.Starter(
-            label="Python script for daily email reports",
-            message="Write a script to automate sending daily email reports in Python, and walk me through how I would set it up.",
-            #icon="/public/terminal.svg",
-            #command="code",
-        ),
-        cl.Starter(
-            label="Text inviting friend to wedding",
-            message="Write a text asking a friend to be my plus-one at a wedding next month. I want to keep it super short and casual, and offer an out.",
-            #icon="/public/write.svg",
-        )
-    ]
 
 @cl.on_chat_start
 async def on_start():
     state = init_state()
-    #display(Image(GRAPH.get_graph(xray=True).draw_mermaid_png()))
-    #state = await run_graph_once(state)
+    state.ui_message=(
+        "你好，我是智能编程学习助手。\n\n"
+        "请选择合适的功能"
+    )
     cl.user_session.set("state", state)
-    """
+    
+    
     # 动作按钮
     actions=[
         cl.Action(name="coach",payload={"value": "example_value"},icon="graduation-cap",label="指导性刷题",tooltip="在agent指导下按一定流程进行学习"),
         cl.Action(name="search",payload={"value": "example_value"},icon="search",label="知识库检索",tooltip="在知识库中针对用户输入进行检索")
-    ]"""
-    
-    #await render(state)
-    #await cl.Message(content="选择一个动作：", actions=actions).send()
+    ]
+    await render(state)
+    await cl.Message(content=state.ui_message, actions=actions).send()
 
-"""actions = [
-        cl.Action(name="need_hint", payload={"value": "example_value"},value="need_hint", label="我想要提示"),
-        cl.Action(name="submit_thoughts", payload={"value": "example_value"},value="submit_thoughts", label="提交思路"),
-        cl.Action(name="submit_code",payload={"value": "example_value"}, value="submit_code", label="提交代码"),
-        cl.Action(name="run_tests", payload={"value": "example_value"},value="run_tests", label="运行测试"),
-    ]"""
+
 @cl.action_callback("coach")
 async def on_action(action: cl.Action):
     state: CoachState = cl.user_session.get("state")
+
     actions = [
         cl.Action(name="need_hint", payload={"value": "example_value"},value="need_hint", label="我想要提示"),
         cl.Action(name="submit_thoughts", payload={"value": "example_value"},value="submit_thoughts", label="提交思路"),
         cl.Action(name="submit_code",payload={"value": "example_value"}, value="submit_code", label="提交代码"),
         cl.Action(name="run_tests", payload={"value": "example_value"},value="run_tests", label="运行测试"),
     ]
+
+    res=await cl.AskUserMessage(
+        content="请黏贴题目原文（包含样例 Input/Output）。",
+        timeout=60000
+    ).send()
+
+
+    if res:
+        raw=res["output"]
+        cases=parse_examples_from_text(raw)
+        title=summarize_title(raw)
+        constraints=extract_constraints(raw)
+
+        state.problem.raw_text=raw
+        state.problem.title=title
+        state.problem.statement = raw[:1200]  # MVP：展示截断；完整保存在 raw_text
+        state.problem.constraints = constraints
+        state.problem.testcases = cases
+        state.problem.examples = "\n---\n".join(
+                [f"INPUT:\n{c['input']}OUTPUT:\n{c['expected']}" for c in cases[:5]]
+            )
+        # 设置题目后，进入 intake→diagnose→probe
+        state.next_action = "diagnose"
+
+        out = GRAPH.invoke(state.model_dump())
+        state = CoachState.model_validate(out)
+
+        cl.user_session.set("state", state)
+        await cl.Message(
+                content=(
+                    f"✅ 已设置题目：**{state.problem.title}**\n"
+                    f"- 抽取到测试用例数：{len(state.problem.testcases)}\n\n"
+                    + state.ui_message
+                ),
+                actions=actions
+        ).send()
+        return
+        
+
+
+    
     await render(state)
     await cl.Message(content="选择一个动作：", actions=actions).send()
 """
