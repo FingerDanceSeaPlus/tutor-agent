@@ -8,6 +8,14 @@ from coach.hint_policy import HintPolicy, format_hint_header, hint_rules
 # ---------- Nodes ----------
 
 def n_intake(state: CoachState) -> CoachState:
+    """
+    n_intake 的 Docstring
+    
+    :param state: 说明
+    :type state: CoachState
+    :return: 说明
+    :rtype: CoachState
+    """
     print("intake\n")
     state.step.name = "intake"
     state.step.status = "done"

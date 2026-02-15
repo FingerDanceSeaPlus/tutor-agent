@@ -71,7 +71,7 @@ class StepState(BaseModel):
     history: List[str] = Field(default_factory=list)
 
 class CoachState(BaseModel):
-    mode: Literal["practice"] = "practice"
+    mode: Literal["tutor"] = "tutor"#Agent模式
     language: Literal["python"] = "python"
 
     problem: Problem
