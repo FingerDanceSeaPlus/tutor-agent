@@ -73,6 +73,7 @@ class StepState(BaseModel):
 class CoachState(BaseModel):
     mode: Literal["tutor"] = "tutor"#Agent模式
     language: Literal["python"] = "python"
+    phase: Literal["need_problem", "thinking", "coding", "testing", "reflecting"] = "need_problem"#阶段
 
     problem: Problem
     user_attempt: UserAttempt = Field(default_factory=UserAttempt)
@@ -82,11 +83,11 @@ class CoachState(BaseModel):
 
     hint_policy: HintPolicyState = Field(default_factory=HintPolicyState)
 
-    step: StepState = Field(default_factory=StepState)
     evaluation: Evaluation = Field(default_factory=Evaluation)
     artifacts: Artifacts = Field(default_factory=Artifacts)
     progress: Progress = Field(default_factory=Progress)
 
     # 路由控制：节点之间传递“下一步要做什么”
-    next_action: str = "diagnose"   # diagnose / probe / coach / evaluate / reflect
+    
     ui_message: str = ""            # 给 Chainlit 展示的主文本
+    next_action: str = ""            # 路由控制
