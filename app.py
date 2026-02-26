@@ -165,6 +165,94 @@ class PhaseHandler:
         except Exception as e:
             return self.handle_error(e, "处理复盘阶段操作")
     
+    async def handle_need_problem_actions(self, action: cl.Action):
+        """
+        处理需要题目的action
+        """
+        try:
+            action_name = action.name
+            
+            if action_name == "set_problem":
+                return await self._handle_set_problem()
+            else:
+                self.state.ui_message = f"未知的操作：{action_name}"
+                return self.state
+        except Exception as e:
+            return self.handle_error(e, "处理设置题目操作")
+    
+    async def _handle_set_problem(self) -> CoachState:
+        """
+        处理设置题目
+        """
+        try:
+            res = await cl.AskUserMessage(
+                content="请黏贴题目原文（包含样例 Input/Output）。",
+                timeout=60000
+            ).send()
+            
+            if res:
+                raw = res["output"]
+                cases = parse_examples_from_text(raw)
+                title = summarize_title(raw)
+                constraints = extract_constraints(raw)
+
+                # 暂时保存解析结果，进入检查阶段
+                self.state.problem.raw_text = raw
+                self.state.problem.title = title
+                self.state.problem.statement = raw[:1200]  # MVP：展示截断；完整保存在 raw_text
+                self.state.problem.constraints = constraints
+                self.state.problem.testcases = cases
+                self.state.problem.examples = "\n---\n".join(
+                        [f"INPUT:\n{c['input']}OUTPUT:\n{c['expected']}" for c in cases[:5]]
+                    )
+                
+                # 进入检查和完善阶段
+                return await self._handle_review_problem()
+            else:
+                self.state.ui_message = "你取消了设置题目。"
+                return self.state
+        except Exception as e:
+            return self.handle_error(e, "设置题目")
+    
+    async def _handle_review_problem(self) -> CoachState:
+        """
+        处理用户检查和完善题目内容
+        """
+        try:
+            # 显示解析结果，让用户检查
+            content = f"### 题目解析结果\n\n"
+            content += f"**标题**：{self.state.problem.title}\n\n"
+            content += f"**描述**：{self.state.problem.statement}\n\n"
+            content += f"**约束条件**：{self.state.problem.constraints or '无'}\n\n"
+            content += f"**测试用例数**：{len(self.state.problem.testcases)}\n\n"
+            content += f"**样例**：\n{self.state.problem.examples or '无'}\n\n"
+            content += "请检查以上信息是否正确，如需修改请重新设置题目。"
+            
+            # 提供确认和重新设置的选项
+            res = await cl.AskUserMessage(
+                content=content,
+                timeout=60000,
+                actions=[
+                    cl.Action(name="confirm_problem", value="confirm_problem", label="确认题目"),
+                    cl.Action(name="reset_problem", value="reset_problem", label="重新设置")
+                ]
+            ).send()
+            
+            if res and res["action"] and res["action"]["name"] == "confirm_problem":
+                # 确认题目，进入思路阶段
+                self.state.phase = "thinking"
+                out = GRAPH.invoke(self.state.model_dump())
+                self.state = CoachState.model_validate(out)
+                return self.state
+            elif res and res["action"] and res["action"]["name"] == "reset_problem":
+                # 重新设置题目
+                return await self._handle_set_problem()
+            else:
+                self.state.ui_message = "你取消了题目检查。"
+                return self.state
+        except Exception as e:
+            return self.handle_error(e, "检查题目")
+    
     async def _handle_submit_thoughts(self) -> CoachState:
         """
         处理提交思路
@@ -327,7 +415,9 @@ async def route_action(state: CoachState, action: cl.Action) -> CoachState:
             state.ui_message = "状态验证失败，请重新设置题目。"
             return state
         
-        if phase == "thinking":
+        if phase == "need_problem":
+            return await handler.handle_need_problem_actions(action)
+        elif phase == "thinking":
             return await handler.handle_thinking_actions(action)
         elif phase == "coding":
             return await handler.handle_coding_actions(action)
@@ -399,6 +489,11 @@ def stage_actions(state: CoachState) -> List[cl.Action]:
 
     # 根据当前阶段显示不同按钮
     phase = state.phase
+
+    # 0) 需要题目阶段：只显示“设置题目”
+    if phase == "need_problem":
+        actions.append(cl.Action(name="set_problem", value="set_problem", label="设置题目"))
+        return actions
 
     # 1) 思路阶段：强调“提交思路”
     if phase == "thinking":
@@ -531,42 +626,36 @@ async def on_set_problem(action: cl.Action):
     """
     state: CoachState = cl.user_session.get("state")
     
-    res = await cl.AskUserMessage(
-        content="请黏贴题目原文（包含样例 Input/Output）。",
-        timeout=60000
-    ).send()
-    
-    if res:
-        raw = res["output"]
-        cases = parse_examples_from_text(raw)
-        title = summarize_title(raw)
-        constraints = extract_constraints(raw)
-
-        state.problem.raw_text = raw
-        state.problem.title = title
-        state.problem.statement = raw[:1200]  # MVP：展示截断；完整保存在 raw_text
-        state.problem.constraints = constraints
-        state.problem.testcases = cases
-        state.problem.examples = "\n---\n".join(
-                [f"INPUT:\n{c['input']}OUTPUT:\n{c['expected']}" for c in cases[:5]]
-            )
-        # 设置题目后，进入思路阶段
-        state.phase = "thinking"
-
-        out = GRAPH.invoke(state.model_dump())
-        state = CoachState.model_validate(out)
-
+    try:
+        # 使用PhaseHandler处理设置题目
+        handler = PhaseHandler(state)
+        updated_state = await handler.handle_need_problem_actions(action)
+        
+        # 更新会话状态
+        cl.user_session.set("state", updated_state)
+        
+        # 发送响应
+        await cl.Message(
+            content=updated_state.ui_message,
+            actions=stage_actions(updated_state)
+        ).send()
+    except Exception as e:
+        print(f"Error in on_set_problem: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # 错误处理
+        state.ui_message = (
+            "❌ 设置题目失败\n\n"
+            f"错误信息：{str(e)}\n\n"
+            "请稍后重试，或检查你的输入是否正确。"
+        )
+        
         cl.user_session.set("state", state)
         await cl.Message(
-                content=(
-                    f"✅ 已设置题目：**{state.problem.title}**\n"
-                    f"- 抽取到测试用例数：{len(state.problem.testcases)}\n\n"
-                    + state.ui_message
-                ),
-                actions=stage_actions(state)
+            content=state.ui_message,
+            actions=stage_actions(state)
         ).send()
-    else:
-        await cl.Message(content="你取消了设置题目。").send()
 
 
 @cl.action_callback("view_problem")
