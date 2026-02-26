@@ -1,89 +1,121 @@
-# 总体介绍
-本项目旨在开发一款帮助人入门编程学习的智能agent助手，涵盖从知识检索、学习规划、测验生成、代码测试等一系列新手在编程入门时不可或缺的内容与功能。
-# 功能介绍
-## 对话功能
+# 智能编程学习助手
 
-是整个程序的入口,支持多轮对话和上下文记忆力功能,同时能对用户的意图进行识别,调用相关的功能模块.
+一个基于Chainlit和LangGraph的智能编程学习助手，帮助用户按照一定的流程进行编程学习和刷题。
 
-# 架构梳理
-## 前端
-前端通过chainlit实现
-## 推荐的架构
-顶层图：TutorAgentGraph
+## 项目结构
 
-职责：
+```
+coach/
+├── app.py              # 主应用入口
+├── handlers/           # 处理器目录
+│   ├── __init__.py
+│   ├── action_handler.py  # 动作处理器
+│   ├── phase_handler.py   # 阶段处理器
+│   └── error_handler.py   # 错误处理器
+├── services/           # 服务目录
+│   ├── __init__.py
+│   ├── state_service.py   # 状态管理服务
+│   ├── graph_service.py   # 图处理服务
+│   └── problem_service.py # 题目处理服务
+├── graphs/             # 图管理目录
+│   ├── __init__.py
+│   ├── base.py           # 基础图定义
+│   ├── subgraphs/        # 子图目录
+│   │   ├── __init__.py
+│   │   ├── thinking.py    # 思路阶段子图
+│   │   ├── coding.py      # 编码阶段子图
+│   │   ├── testing.py     # 测试阶段子图
+│   │   └── reflecting.py  # 复盘阶段子图
+│   └── registry.py        # 图注册和管理
+├── utils/              # 工具目录
+│   ├── __init__.py
+│   ├── action_builder.py  # 动作按钮构建器
+│   └── validation.py      # 验证工具
+└── schemas/            # 数据模型目录
+    └── __init__.py        # 数据模型定义
+```
 
-统一维护 CoachState
+## 核心功能
 
-决定当前 mode/phase
+1. **指导性刷题**：按照思路→编码→测试→复盘的流程进行学习
+2. **题目解析**：自动解析题目文本，提取关键信息和测试用例
+3. **智能提示**：根据不同阶段提供针对性的提示和建议
+4. **测试验证**：运行测试用例验证代码正确性
+5. **复盘总结**：提供解题总结和变式题建议
 
-选择要调用哪个子图
+## 技术栈
 
-统一处理“中断/等待用户输入”（你现在用按钮驱动）
+- Python 3.8+
+- Chainlit：用于构建交互式界面
+- LangGraph：用于构建和管理状态图
+- Pydantic：用于数据验证和模型定义
 
-子图（按功能划分）
+## 快速开始
 
-对刷题教学专精，合理的子图颗粒度通常是：
+### 安装依赖
 
-ProblemSetupSubgraph：设置题目、解析样例、生成 testcases
+```bash
+pip install -r requirements.txt
+```
 
-ThinkingSubgraph：思路卡引导、判定缺项、提示等级循环
+### 运行应用
 
-CodingSubgraph：代码规范检查、引导最小修改
+```bash
+chainlit run app.py
+```
 
-TestingSubgraph：运行样例/边界/（可选）随机对拍、失败归因
+## 使用流程
 
-ReflectSubgraph：复盘卡、变式题、下一题路线
+1. **启动应用**：运行 `chainlit run app.py` 启动应用
+2. **选择功能**：选择"指导性刷题"功能
+3. **设置题目**：粘贴题目原文，系统会自动解析
+4. **确认题目**：检查解析结果，确认无误后进入下一阶段
+5. **思路阶段**：提交解题思路，可获取提示
+6. **编码阶段**：编写代码实现，可运行测试
+7. **测试阶段**：运行测试用例，验证代码正确性
+8. **复盘阶段**：查看解题总结，可选择做变式题或下一题
 
-可选增强：
+## 模块说明
 
-RetrieveSubgraph：知识库检索（为 hint/reflect 提供证据）
+### 服务层
+- **StateService**：管理应用状态，提供状态更新和验证
+- **GraphService**：管理图的构建和执行
+- **ProblemService**：处理题目解析和验证
 
-VariantTrainingSubgraph：自动生成变式并回到 thinking
+### 处理器层
+- **ActionHandler**：统一处理所有动作回调
+- **PhaseHandler**：按阶段处理用户交互
+- **ErrorHandler**：集中处理错误
 
-你应该如何“切子图”：按工作流边界而不是按按钮
+### 图管理
+- **BaseGraph**：基础图类
+- **SubGraph**：子图类
+- **GraphRegistry**：图注册中心
 
-你 UI 的按钮（提交思路/提交代码/运行测试）是触发事件，但子图应该按工作流闭环切分：
+### 工具类
+- **ActionBuilder**：构建动作按钮
+- **ValidationTool**：验证用户输入和状态
 
-“设置题目”不是一颗按钮，而是一段流程：粘贴 → 解析 → 校验 → 生成用例
+## 扩展指南
 
-“提示”不是一颗按钮，而是一段流程：判缺项 → bump level → 输出提示 → 等用户补齐
+### 添加新的子图
+1. 在 `graphs/subgraphs/` 目录下创建新的子图文件
+2. 继承 `SubGraph` 类并实现 `build` 方法
+3. 在 `graphs/__init__.py` 中导出新的子图构建函数
+4. 在 `graph.py` 中注册和使用新的子图
 
-这样子图内部才能保持高内聚。
+### 添加新的动作
+1. 在 `ActionHandler` 中注册新的动作回调
+2. 在 `PhaseHandler` 中添加相应的处理逻辑
+3. 在 `action_builder.py` 中添加动作按钮构建逻辑
 
-1) 子图的接口规范（最关键）
+## 注意事项
 
-每个子图都应该像一个纯函数（尽量）：
+- 题目文本需要包含完整的题目描述和样例输入输出
+- 代码实现需要定义 `solve(inp: str) -> str` 函数
+- 系统会自动运行测试用例验证代码正确性
+- 如遇到问题，可使用"提示"功能获取帮助
 
-输入：CoachState
+## 许可证
 
-输出：更新后的 CoachState
-
-只负责自己那段状态字段（边界清晰）
-
-推荐：每个子图只读/只写的字段约定
-
-例如：
-
-子图	主要读	主要写
-ProblemSetup	user input / raw_text	problem.title/testcases/phase
-Thinking	attempt.thoughts, hint	phase, ui_message, hint.level
-Coding	attempt.code	phase, ui_message
-Testing	attempt.code, problem.testcases	evaluation, phase, ui_message
-Reflect	evaluation, attempt	artifacts.cheat_sheet, phase
-
-这样顶层图就很容易维护一致性。
-
-4) 顶层路由（Router 节点）怎么写
-
-你顶层图需要一个路由字段（建议叫 mode 或 phase）。
-
-mode：刷题 / 调试 / 讲解（宏观入口）
-
-phase：need_problem / thinking / coding / testing / reflecting（教学阶段）
-
-顶层路由规则（建议）
-
-优先用 phase 决定走哪个子图
-
-mode 决定具体子图版本（例如 debug 子图替换 testing 子图）
+MIT

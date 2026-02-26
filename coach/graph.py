@@ -3,17 +3,30 @@ from __future__ import annotations
 from langgraph.graph import StateGraph, END
 from coach.schemas import CoachState
 from coach.subgraphs.problem_setup import build_problem_setup_subgraph
-from coach.subgraphs.thinking import build_thinking_subgraph
-from coach.subgraphs.coding import build_coding_subgraph
-from coach.subgraphs.testing import build_testing_subgraph
-from coach.subgraphs.reflect import build_reflect_subgraph
+from coach.graphs import (
+    build_thinking_subgraph,
+    build_coding_subgraph,
+    build_testing_subgraph,
+    build_reflecting_subgraph,
+    build_problem_extraction_subgraph,
+    graph_registry
+)
 
 # 构建子图
 problem_setup_subgraph = build_problem_setup_subgraph()
+problem_extraction_subgraph = build_problem_extraction_subgraph()
 thinking_subgraph = build_thinking_subgraph()
 coding_subgraph = build_coding_subgraph()
 testing_subgraph = build_testing_subgraph()
-reflect_subgraph = build_reflect_subgraph()
+reflect_subgraph = build_reflecting_subgraph()
+
+# 注册子图
+graph_registry.register("problem_setup", problem_setup_subgraph)
+graph_registry.register("problem_extraction", problem_extraction_subgraph)
+graph_registry.register("thinking", thinking_subgraph)
+graph_registry.register("coding", coding_subgraph)
+graph_registry.register("testing", testing_subgraph)
+graph_registry.register("reflect", reflect_subgraph)
 
 # 顶层路由函数
 def top_level_router(state: CoachState) -> str:
@@ -23,6 +36,9 @@ def top_level_router(state: CoachState) -> str:
     print(f"TopLevelRouter: current phase = {state.phase}")
     
     if state.phase == "need_problem":
+        # 检查是否已有题目文本，如果有则进入提取阶段
+        if state.problem and state.problem.raw_text:
+            return "problem_extraction"
         return "problem_setup"
     elif state.phase == "thinking":
         return "thinking"
@@ -46,6 +62,7 @@ def build_tutor_agent_graph():
     
     # 添加子图作为节点
     graph.add_node("problem_setup", problem_setup_subgraph)
+    graph.add_node("problem_extraction", problem_extraction_subgraph)
     graph.add_node("thinking", thinking_subgraph)
     graph.add_node("coding", coding_subgraph)
     graph.add_node("testing", testing_subgraph)
@@ -57,6 +74,16 @@ def build_tutor_agent_graph():
     # 添加条件边，根据phase路由到不同的子图
     graph.add_conditional_edges("problem_setup", top_level_router, {
         "problem_setup": "problem_setup",
+        "problem_extraction": "problem_extraction",
+        "thinking": "thinking",
+        "coding": "coding",
+        "testing": "testing",
+        "reflect": "reflect",
+    })
+    
+    graph.add_conditional_edges("problem_extraction", top_level_router, {
+        "problem_setup": "problem_setup",
+        "problem_extraction": "problem_extraction",
         "thinking": "thinking",
         "coding": "coding",
         "testing": "testing",
@@ -65,6 +92,7 @@ def build_tutor_agent_graph():
     
     graph.add_conditional_edges("thinking", top_level_router, {
         "problem_setup": "problem_setup",
+        "problem_extraction": "problem_extraction",
         "thinking": "thinking",
         "coding": "coding",
         "testing": "testing",
@@ -73,6 +101,7 @@ def build_tutor_agent_graph():
     
     graph.add_conditional_edges("coding", top_level_router, {
         "problem_setup": "problem_setup",
+        "problem_extraction": "problem_extraction",
         "thinking": "thinking",
         "coding": "coding",
         "testing": "testing",
@@ -81,6 +110,7 @@ def build_tutor_agent_graph():
     
     graph.add_conditional_edges("testing", top_level_router, {
         "problem_setup": "problem_setup",
+        "problem_extraction": "problem_extraction",
         "thinking": "thinking",
         "coding": "coding",
         "testing": "testing",
@@ -89,6 +119,7 @@ def build_tutor_agent_graph():
     
     graph.add_conditional_edges("reflect", top_level_router, {
         "problem_setup": "problem_setup",
+        "problem_extraction": "problem_extraction",
         "thinking": "thinking",
         "coding": "coding",
         "testing": "testing",
