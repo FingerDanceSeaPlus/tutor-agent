@@ -83,8 +83,32 @@ def stage_actions(state: CoachState) -> List[cl.Action]:
     actions.append(cl.Action(name="need_hint", value="need_hint", label=f"提示(L{int(state.hint_policy.level)})", payload={}))
     return actions
 
-async def render(state: CoachState, actions: List):
-    await cl.Message(content=state.ui_message,actions=actions).send()
+async def render(state: CoachState, actions: List = None):
+    """
+    渲染消息和动作按钮
+    根据状态自动调整UI
+    """
+    # 如果没有提供actions，根据状态生成
+    if actions is None:
+        actions = stage_actions(state)
+    
+    # 根据状态调整消息内容
+    if state.phase_status == "need_user":
+        # 如果需要用户输入，使用AskUserMessage
+        res = await cl.AskUserMessage(
+            content=state.ui_message,
+            timeout=60000
+        ).send()
+        
+        if res:
+            state.user_input = res["output"]
+            # 处理用户输入
+            updated_state = await action_handler.route_action(state, cl.Action(name="process_user_input", value="process_user_input", label="处理输入", payload={}))
+            cl.user_session.set("state", updated_state)
+            await render(updated_state)
+    else:
+        # 否则使用普通消息
+        await cl.Message(content=state.ui_message, actions=actions).send()
 
 
 @cl.on_chat_start

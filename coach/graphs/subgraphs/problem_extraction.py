@@ -4,8 +4,8 @@ from coach.schemas import CoachState
 from typing import Dict, Any
 import json
 import os
-from langchain.agents import create_agent
-from langchain_openai import ChatOpenAI
+from coach.prompts import SYSTEM_PROMPT, PROBLEM_EXTRACTION_PROMPT
+from coach.services.llm_service import LLMService
 class ProblemExtractionSubGraph(SubGraph):
     """
     题目字段智能化提取子图
@@ -25,16 +25,65 @@ class ProblemExtractionSubGraph(SubGraph):
         graph.add_node("extract_fields", self.extract_fields)
         graph.add_node("validate_extraction", self.validate_extraction)
         graph.add_node("process_results", self.process_results)
+        graph.add_node("handle_error", self.handle_error)
         
         # 设置入口点
         graph.set_entry_point("extract_fields")
         
-        # 添加边
-        graph.add_edge("extract_fields", "validate_extraction")
-        graph.add_edge("validate_extraction", "process_results")
+        # 添加条件边
+        graph.add_conditional_edges(
+            "extract_fields",
+            self.determine_next_node,
+            {
+                "validate_extraction": "validate_extraction",
+                "handle_error": "handle_error"
+            }
+        )
+        
+        graph.add_conditional_edges(
+            "validate_extraction",
+            self.determine_next_node,
+            {
+                "process_results": "process_results",
+                "handle_error": "handle_error"
+            }
+        )
+        
         graph.add_edge("process_results", END)
+        graph.add_edge("handle_error", END)
         
         return graph
+    
+    def determine_next_node(self, state: CoachState) -> str:
+        """
+        根据状态决定下一步执行的节点
+        """
+        # 检查是否有错误
+        if "error" in state.ui_message.lower():
+            return "handle_error"
+        
+        # 根据当前节点和状态决定下一步
+        # 这里可以根据具体的业务逻辑进行判断
+        return "validate_extraction" if state.phase_status != "error" else "handle_error"
+    
+    def handle_error(self, state: CoachState) -> Dict[str, Any]:
+        """
+        处理错误
+        """
+        try:
+            # 生成错误处理消息
+            state.ui_message = (
+                "❌ 题目提取过程中发生错误\n\n"
+                "请检查你的输入是否正确，或稍后重试。\n\n"
+                "你可以尝试重新设置题目。"
+            )
+            state.phase_status = "idle"
+            return state.model_dump()
+        except Exception as e:
+            print(f"Error in handle_error: {e}")
+            state.ui_message = "处理错误时发生异常，请重新设置题目。"
+            state.phase_status = "idle"
+            return state.model_dump()
     
     def extract_fields(self, state: CoachState) -> Dict[str, Any]:
         """
@@ -47,43 +96,13 @@ class ProblemExtractionSubGraph(SubGraph):
             api_key = os.getenv("DASHSCOPE_API_KEY")
             
             # 构建system prompt和user input
-            system_prompt = "你是一个专业的编程题目分析助手，擅长提取题目信息并结构化。请根据用户提供的指令分析题目并返回结构化结果。"
+            system_prompt = SYSTEM_PROMPT
             
-            user_input = '''
-            请分析以下编程题目，提取并结构化以下信息：
-
-            1. 标题：题目的简短标题
-            2. 描述：题目主体描述，去除标题、约束、样例等部分
-            3. 约束条件：题目中的约束条件
-            4. 样例：输入输出对，格式为[["input": "...", "expected": "..."]]
-            5. 标签：题目相关的算法标签
-            6. 难度：估计题目难度（简单/中等/困难）
-
-            题目文本：
-            {problem_text}
-
-            请只返回JSON格式的结果，不要包含其他任何文本，包含上述所有字段。
-            '''.format(problem_text=problem_text)
+            user_input = PROBLEM_EXTRACTION_PROMPT.format(problem_text=problem_text)
             
-            # 修复格式字符串中的大括号
-            user_input = user_input.replace('[[', '{').replace(']]', '}')
-            
-            # 调用LLM - 直接使用ChatOpenAI实例而不是agent
-            llm = ChatOpenAI(
-                api_key=api_key,
-                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-                model="qwen3-max"
-            )
-            
-            # 构建消息
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_input}
-            ]
-            
-            # 调用LLM
-            response = llm.invoke(messages)
-            agent_output = response.content
+            # 调用LLM - 使用LLM服务类，带重试和缓存机制
+            llm_service = LLMService()
+            agent_output = llm_service.invoke_with_retry(system_prompt, user_input)
             
             # 解析结果
             try:

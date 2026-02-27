@@ -74,6 +74,7 @@ class CoachState(BaseModel):
     mode: Literal["tutor"] = "tutor"#Agent模式
     language: Literal["python"] = "python"
     phase: Literal["need_problem", "thinking", "coding", "testing", "reflecting"] = "need_problem"#阶段
+    phase_status: Literal["idle", "need_user", "running", "done"] = "idle"#阶段状态
 
     problem: Problem
     user_attempt: UserAttempt = Field(default_factory=UserAttempt)
@@ -91,3 +92,5 @@ class CoachState(BaseModel):
     
     ui_message: str = ""            # 给 Chainlit 展示的主文本
     next_action: str = ""            # 路由控制
+    user_input: str = ""             # 用户输入
+    transition_reason: str = ""      # 状态转换原因

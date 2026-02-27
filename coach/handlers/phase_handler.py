@@ -137,26 +137,32 @@ class PhaseHandler:
         except Exception as e:
             return self.error_handler.handle_action_error(e, self.state)
     
-    async def _handle_set_problem(self) -> CoachState:
+    async def _handle_set_problem(self, user_input: str = None) -> CoachState:
         """
         处理设置题目
         """
         try:
-            res = await cl.AskUserMessage(
-                content="请黏贴题目原文（包含样例 Input/Output）。",
-                timeout=60000
-            ).send()
-            
-            if res:
-                raw = res["output"]
-                # 保存原始文本到状态中
-                self.state.problem.raw_text = raw
-                
-                # 进入检查和完善阶段（使用problem_extraction子图进行智能化提取）
-                return await self._handle_review_problem()
+            if user_input:
+                # 使用传入的用户输入
+                raw = user_input
             else:
-                self.state.ui_message = "你取消了设置题目。"
-                return self.state
+                # 没有传入用户输入，使用AskUserMessage获取
+                res = await cl.AskUserMessage(
+                    content="请黏贴题目原文（包含样例 Input/Output）。",
+                    timeout=60000
+                ).send()
+                
+                if res:
+                    raw = res["output"]
+                else:
+                    self.state.ui_message = "你取消了设置题目。"
+                    return self.state
+            
+            # 保存原始文本到状态中
+            self.state.problem.raw_text = raw
+            
+            # 进入检查和完善阶段（使用problem_extraction子图进行智能化提取）
+            return await self._handle_review_problem()
         except Exception as e:
             return self.error_handler.handle_error(e, "设置题目", self.state)
     
@@ -175,24 +181,38 @@ class PhaseHandler:
         except Exception as e:
             return self.error_handler.handle_error(e, "检查题目", self.state)
     
+    async def _ask_user_input(self, content: str) -> str:
+        """
+        通用方法：获取用户输入
+        """
+        res = await cl.AskUserMessage(
+            content=content,
+            timeout=60000
+        ).send()
+        
+        if res:
+            return res["output"]
+        else:
+            return None
+    
     async def _handle_submit_thoughts(self) -> CoachState:
         """
         处理提交思路
         """
         try:
-            res = await cl.AskUserMessage(
-                content="请输入你的解题思路：\n\n" +
+            user_input = await self._ask_user_input(
+                "请输入你的解题思路：\n\n" +
                 "1) 你对题意的复述\n" +
                 "2) 关键约束/边界条件\n" +
                 "3) 你打算使用的算法\n" +
                 "4) 不变量分析\n" +
-                "5) 时间和空间复杂度分析",
-                timeout=60000
-            ).send()
+                "5) 时间和空间复杂度分析"
+            )
             
-            if res:
+            if user_input:
                 # 使用update_state方法更新状态
-                self.update_state({"user_attempt.thoughts": res["output"]})
+                self.update_state({"user_attempt.thoughts": user_input})
+                self.state.phase_status = "done"
             else:
                 self.state.ui_message = "你取消了提交思路。"
             
@@ -205,18 +225,18 @@ class PhaseHandler:
         处理提交代码
         """
         try:
-            res = await cl.AskUserMessage(
-                content="请输入你的代码实现：\n\n" +
+            user_input = await self._ask_user_input(
+                "请输入你的代码实现：\n\n" +
                 "请确保：\n" +
                 "- 定义 `solve(inp: str) -> str` 函数\n" +
                 "- 正确处理输入输出格式\n" +
-                "- 考虑所有边界条件",
-                timeout=60000
-            ).send()
+                "- 考虑所有边界条件"
+            )
             
-            if res:
+            if user_input:
                 # 使用update_state方法更新状态
-                self.update_state({"user_attempt.code": res["output"]})
+                self.update_state({"user_attempt.code": user_input})
+                self.state.phase_status = "done"
             else:
                 self.state.ui_message = "你取消了提交代码。"
             

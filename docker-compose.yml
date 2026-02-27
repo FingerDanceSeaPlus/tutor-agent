@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  chainlit_ui:
+    build:
+      context: ./services/chainlit_ui
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    depends_on:
+      - agent_api
+    environment:
+      - AGENT_API_URL=http://agent_api:8001
+
+  agent_api:
+    build:
+      context: ./services/agent_api
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    depends_on:
+      - runner_api
+    environment:
+      - RUNNER_API_URL=http://runner_api:8002
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  runner_api:
+    build:
+      context: ./services/runner_api
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - PYTHONUNBUFFERED=1

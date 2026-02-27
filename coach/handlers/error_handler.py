@@ -1,5 +1,19 @@
 from coach.schemas import CoachState
 from typing import Optional
+import logging
+import traceback
+
+# 配置日志
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('coach.log'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 class ErrorHandler:
     """
@@ -15,9 +29,8 @@ class ErrorHandler:
         处理错误并更新状态
         """
         error_message = f"{context}时发生错误: {str(error)}"
-        print(error_message)
-        import traceback
-        traceback.print_exc()
+        logger.error(error_message)
+        logger.error(traceback.format_exc())
         
         # 如果没有状态，创建一个新的状态
         if not state:
@@ -51,3 +64,9 @@ class ErrorHandler:
         处理动作执行错误
         """
         return self.handle_error(error, "动作执行", state)
+    
+    def handle_llm_error(self, error: Exception, state: Optional[CoachState] = None) -> CoachState:
+        """
+        处理LLM调用错误
+        """
+        return self.handle_error(error, "LLM调用", state)
