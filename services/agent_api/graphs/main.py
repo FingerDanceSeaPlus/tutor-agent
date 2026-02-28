@@ -26,11 +26,11 @@ class TutorAgentGraph(BaseGraph):
         self.reflecting_subgraph = ReflectingSubGraph()
 
         # 构建子图
-        self.problem_extraction_graph = self.problem_extraction_subgraph.build()
-        self.thinking_graph = self.thinking_subgraph.build()
-        self.coding_graph = self.coding_subgraph.build()
-        self.testing_graph = self.testing_subgraph.build()
-        self.reflecting_graph = self.reflecting_subgraph.build()
+        self.problem_extraction_graph = self.problem_extraction_subgraph.build().compile()
+        self.thinking_graph = self.thinking_subgraph.build().compile()
+        self.coding_graph = self.coding_subgraph.build().compile()
+        self.testing_graph = self.testing_subgraph.build().compile()
+        self.reflecting_graph = self.reflecting_subgraph.build().compile()
 
         # 添加子图作为节点
         self.graph.add_node("S1_PROBLEM_graph", self.problem_extraction_graph)

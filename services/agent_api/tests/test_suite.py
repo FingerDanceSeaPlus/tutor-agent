@@ -1,16 +1,16 @@
 import asyncio
 import pytest
-from schemas.stage import Stage
-from schemas.state import CoachState, ProblemSpec, IdeaSpec, CodeSpec, RunReport, TestReport
-from graphs.subgraphs.problem_extraction import ProblemExtractionSubGraph
-from graphs.subgraphs.thinking import ThinkingSubGraph
-from graphs.subgraphs.coding import CodingSubGraph
-from graphs.subgraphs.testing import TestingSubGraph
-from graphs.subgraphs.reflecting import ReflectingSubGraph
-from services.llm_service import LLMService
-from services.runner_service import RunnerService
-from services.trace_service import TraceService
-from services.graph_service import GraphService
+from ..schemas.stage import Stage
+from ..schemas.state import CoachState, ProblemSpec, IdeaSpec, CodeSpec, RunReport, TestReport
+from ..graphs.subgraphs.problem_extraction import ProblemExtractionSubGraph
+from ..graphs.subgraphs.thinking import ThinkingSubGraph
+from ..graphs.subgraphs.coding import CodingSubGraph
+from ..graphs.subgraphs.testing import TestingSubGraph
+from ..graphs.subgraphs.reflecting import ReflectingSubGraph
+from ..services.llm_service import LLMService
+from ..services.runner_service import RunnerService
+from ..services.trace_service import TraceService
+from ..services.graph_service import GraphService
 
 
 class TestStageEnum:

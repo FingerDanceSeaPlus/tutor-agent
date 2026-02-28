@@ -1,33 +1,35 @@
 import chainlit as cl
-import requests
+import httpx
 import json
 import uuid
 
 # 后端API地址
-AGENT_API_URL = "http://localhost:8001"
+AGENT_API_URL = "http://localhost:8002"
 
 # 会话管理
 sessions = {}
 
 
 @cl.on_chat_start
-def on_chat_start():
+async def on_chat_start():
     """聊天开始时的处理"""
-    # 创建新会话
-    session_id = str(uuid.uuid4())
-    cl.user_session.set("session_id", session_id)
-    
     # 向后端创建会话
-    response = requests.post(f"{AGENT_API_URL}/sessions")
-    if response.status_code == 200:
-        data = response.json()
-        sessions[session_id] = {
-            "stage": data.get("stage"),
-            "ui_hints": data.get("ui_hints", [])
-        }
-        cl.message("欢迎使用算法编程学习助手！请开始提交题目。")
-    else:
-        cl.message("连接后端服务失败，请稍后重试。")
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{AGENT_API_URL}/sessions", json={})
+        if response.status_code == 200:
+            data = response.json()
+            session_id = data.get("session_id")
+            if session_id:
+                cl.user_session.set("session_id", session_id)
+                sessions[session_id] = {
+                    "stage": data.get("stage"),
+                    "ui_hints": data.get("ui_hints", [])
+                }
+                await cl.Message(content=f"欢迎使用算法编程学习助手！会话ID: {session_id}。请开始提交题目。").send()
+            else:
+                await cl.Message(content="获取会话ID失败，请刷新页面重试。").send()
+        else:
+            await cl.Message(content="连接后端服务失败，请稍后重试。").send()
 
 
 @cl.on_message
@@ -35,7 +37,7 @@ async def on_message(message: cl.Message):
     """处理用户消息"""
     session_id = cl.user_session.get("session_id")
     if not session_id:
-        await cl.message("会话已过期，请刷新页面重新开始。")
+        await cl.Message(content="会话已过期，请刷新页面重新开始。").send()
         return
 
     # 发送用户输入到后端
@@ -49,13 +51,14 @@ async def on_message(message: cl.Message):
         }
     }
 
-    response = requests.post(f"{AGENT_API_URL}/events", json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        # 处理后端响应
-        await process_response(data)
-    else:
-        await cl.message("处理请求失败，请稍后重试。")
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{AGENT_API_URL}/events", json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            # 处理后端响应
+            await process_response(data)
+        else:
+            await cl.Message(content=f"处理请求失败，请稍后重试。错误码：{response.status_code}").send()
 
 
 @cl.action_callback("NEXT")
@@ -134,7 +137,7 @@ async def handle_action(action_type, action):
     """处理按钮操作"""
     session_id = cl.user_session.get("session_id")
     if not session_id:
-        await cl.message("会话已过期，请刷新页面重新开始。")
+        await cl.Message(content="会话已过期，请刷新页面重新开始。").send()
         return
 
     # 发送操作到后端
@@ -149,13 +152,14 @@ async def handle_action(action_type, action):
         }
     }
 
-    response = requests.post(f"{AGENT_API_URL}/events", json=payload)
-    if response.status_code == 200:
-        data = response.json()
-        # 处理后端响应
-        await process_response(data)
-    else:
-        await cl.message("处理请求失败，请稍后重试。")
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{AGENT_API_URL}/events", json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            # 处理后端响应
+            await process_response(data)
+        else:
+            await cl.Message(content=f"处理请求失败，请稍后重试。错误码：{response.status_code}").send()
 
 
 async def process_response(data):

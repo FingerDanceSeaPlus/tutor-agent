@@ -5,7 +5,7 @@ from typing import Dict, Any
 import uuid
 from graphs.main import TutorAgentGraph
 from schemas.state import CoachState, Event
-from schemas.stage import Stage
+
 
 app = FastAPI()
 
@@ -78,7 +78,8 @@ async def handle_event(request: EventRequest):
     """处理用户事件"""
     session_id = request.session_id
     event = request.event
-    
+    print(sessions)
+    print(session_id)
     # 检查会话是否存在
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -127,4 +128,4 @@ async def stream_events(session_id: str):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=8002)
