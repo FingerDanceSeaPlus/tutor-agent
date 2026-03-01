@@ -1,8 +1,8 @@
 from langgraph.graph import StateGraph, END
 from typing import Dict, Any
-from schemas.state import CoachState, TestReport, TestCaseResult
-from schemas.stage import Stage
-from services.runner_service import RunnerService
+from ...schemas.state import CoachState, TestReport, TestCaseResult
+from ...schemas.stage import Stage
+from ...services.runner_service import RunnerService
 
 
 class TestingSubGraph:

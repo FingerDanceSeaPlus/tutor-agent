@@ -3,8 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Dict, Any
 import uuid
-from graphs.main import TutorAgentGraph
-from schemas.state import CoachState, Event
+import sys
+import os
+
+# 添加项目根目录到Python路径
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from services.agent_api.graphs.main import TutorAgentGraph
+from services.agent_api.schemas.state import CoachState, Event
 
 
 app = FastAPI()

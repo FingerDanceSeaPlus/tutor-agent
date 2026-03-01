@@ -1,8 +1,8 @@
 from langgraph.graph import StateGraph, END
 from typing import Dict, Any
-from schemas.state import CoachState
-from schemas.stage import Stage
-from services.llm_service import LLMService
+from ...schemas.state import CoachState
+from ...schemas.stage import Stage
+from ...services.llm_service import LLMService
 
 
 class ReflectingSubGraph:

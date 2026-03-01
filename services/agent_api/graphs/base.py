@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph, END
 from typing import Dict, Any, Optional
-from schemas.state import CoachState, Event
-from schemas.stage import Stage
+from ..schemas.state import CoachState, Event, Message, TraceEvent
+from ..schemas.stage import Stage
 
 
 class SubGraph:
@@ -36,15 +36,117 @@ class BaseGraph:
 
     async def ingest_user_input(self, state: CoachState) -> Dict[str, Any]:
         """处理用户输入"""
-        # 这里将Chainlit输入转换为标准事件
-        # 暂时简化处理，实际实现需要根据具体输入类型转换
-        return {}
+        # 检查是否有用户输入
+        if not state.user_input:
+            return {}
+        
+        # 初始化事件和消息
+        event = None
+        user_message = None
+        trace_event = None
+        
+        # 尝试解析输入类型
+        input_data = self._parse_input(state.user_input)
+        input_type = input_data.get("type", "TEXT")
+        payload = input_data.get("payload", {})
+        
+        if input_type == "TEXT":
+            # 处理文本输入
+            text_content = payload.get("text", state.user_input)
+            user_message = Message(
+                role="user",
+                content=text_content
+            )
+            event = Event(
+                type="TEXT",
+                payload={"text": text_content}
+            )
+            trace_event = TraceEvent(
+                stage=state.stage,
+                kind="USER_INPUT",
+                payload={
+                    "input_type": "TEXT",
+                    "content": text_content
+                }
+            )
+        
+        elif input_type == "ACTION":
+            # 处理动作输入
+            action = payload.get("action", "")
+            user_message = Message(
+                role="user",
+                content=f"Action: {action}"
+            )
+            event = Event(
+                type="ACTION",
+                payload={"action": action}
+            )
+            trace_event = TraceEvent(
+                stage=state.stage,
+                kind="USER_INPUT",
+                payload={
+                    "input_type": "ACTION",
+                    "action": action
+                }
+            )
+        
+        elif input_type == "FILE":
+            # 处理文件输入
+            file_name = payload.get("file_name", "")
+            file_content = payload.get("content", "")
+            user_message = Message(
+                role="user",
+                content=f"File uploaded: {file_name}"
+            )
+            event = Event(
+                type="FILE",
+                payload={"file_name": file_name, "content": file_content}
+            )
+            trace_event = TraceEvent(
+                stage=state.stage,
+                kind="USER_INPUT",
+                payload={
+                    "input_type": "FILE",
+                    "file_name": file_name
+                }
+            )
+        
+        # 构建返回的状态更新
+        updated_state = {}
+        
+        if user_message:
+            updated_state["history"] = state.history + [user_message]
+        
+        if trace_event:
+            updated_state["trace"] = {
+                "stages": state.trace.stages,
+                "events": state.trace.events + [trace_event]
+            }
+        
+        return updated_state
+    
+    def _parse_input(self, input_data: str) -> Dict[str, Any]:
+        """解析输入数据，识别输入类型"""
+        try:
+            # 尝试解析为JSON
+            import json
+            parsed = json.loads(input_data)
+            if isinstance(parsed, dict) and "type" in parsed:
+                return parsed
+        except:
+            pass
+        
+        # 默认视为文本输入
+        return {
+            "type": "TEXT",
+            "payload": {"text": input_data}
+        }
 
-    async def stage_router(self, state: CoachState) -> str:
+    async def stage_router(self, state: CoachState) -> Dict[str, Any]:
         """阶段路由"""
         # 根据当前阶段和事件类型决定下一个节点
         # 这里实现智能路由逻辑
-        return f"{state.stage.value}_graph"
+        return {}
 
     async def render_response(self, state: CoachState) -> Dict[str, Any]:
         """渲染响应"""
